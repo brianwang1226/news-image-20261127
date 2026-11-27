@@ -12,12 +12,15 @@
 // those reported facts). This program only copies it to the output the
 // sealed scorer reads, and refuses to run if the image is missing, so a
 // broken entry never ships silently.
-import { copyFileSync, mkdirSync, statSync } from "node:fs";
+import { copyFileSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ENTRY_FILE = "entry.png";
 const EXPECTED_BYTES = 164482;
+// A whole PNG starts with these eight bytes; anything else here means the
+// image file was replaced by a truncated download or a wrong file.
+const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const OUT_DIR = process.env.MAKEFUN_OUTPUT_DIR || "/output";
 
 // Resolve the image next to this script, wherever the grader runs it.
@@ -31,6 +34,10 @@ if (!info.isFile() || info.size !== EXPECTED_BYTES) {
   throw new Error(
     `entry image ${ENTRY_FILE} is ${info.size} bytes, expected ${EXPECTED_BYTES}`,
   );
+}
+const head = readFileSync(source).subarray(0, PNG_SIGNATURE.length);
+if (!head.equals(PNG_SIGNATURE)) {
+  throw new Error(`entry image ${ENTRY_FILE} is not a whole PNG file`);
 }
 
 mkdirSync(OUT_DIR, { recursive: true });
